@@ -114,10 +114,23 @@
                 document.getElementById('message').innerText = "Waiting for game host to initialize document...";
                 return;
             }
-
+        
+            // Helper to extract values whether Firebase delivers them raw or nested
+            const unpackValue = (field) => {
+                if (field && typeof field === 'object') {
+                    if ('integerValue' in field) return parseInt(field.integerValue);
+                    if ('stringValue' in field) return parseInt(field.stringValue);
+                    if ('doubleValue' in field) return parseInt(field.doubleValue);
+                }
+                return parseInt(field) || 0;
+            };
+        
+            // Safely parse the round number out of Firebase's wrapper layout
+            const incomingRound = unpackValue(data.round_number);
+        
             // Detect if Godot increased the round number
-            if (data.round_number !== localRoundTracker) {
-                localRoundTracker = data.round_number;
+            if (incomingRound !== localRoundTracker && incomingRound > 0) {
+                localRoundTracker = incomingRound;
                 
                 // Update text indicators
                 document.getElementById('round-title').innerText = `Round: ${localRoundTracker}`;
