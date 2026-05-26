@@ -110,24 +110,34 @@
         // 2. Real-time Listener: Fires instantly when Godot alters data
         onSnapshot(voteDocRef, (snapshot) => {
             const data = snapshot.data();
+            
+            // Debugging line: Right-click the webpage -> Inspect -> Console to see this output!
+            console.log("Raw Firebase data received by website:", data);
+
             if (!data) {
                 document.getElementById('message').innerText = "Waiting for game host to initialize document...";
                 return;
             }
         
-            // Helper to extract values whether Firebase delivers them raw or nested
+            // Enhanced helper to dive deep into fields if your plugin format varies
             const unpackValue = (field) => {
-                if (field && typeof field === 'object') {
+                if (!field) return 0;
+                if (typeof field === 'object') {
                     if ('integerValue' in field) return parseInt(field.integerValue);
                     if ('stringValue' in field) return parseInt(field.stringValue);
                     if ('doubleValue' in field) return parseInt(field.doubleValue);
+                    // If your plugin wrapped it inside a generic value container
+                    if ('value' in field) return unpackValue(field.value);
                 }
                 return parseInt(field) || 0;
             };
         
-            // Safely parse the round number out of Firebase's wrapper layout
-            const incomingRound = unpackValue(data.round_number);
+            // Check if fields are grouped under a 'fields' child property or root level
+            const targetData = data.fields ? data.fields : data;
+            const incomingRound = unpackValue(targetData.round_number);
         
+            console.log("Parsed Round Number:", incomingRound);
+
             // Detect if Godot increased the round number
             if (incomingRound !== localRoundTracker && incomingRound > 0) {
                 localRoundTracker = incomingRound;
