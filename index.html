@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Puzzle Remote Play!</title>
+    <style>
+        body { 
+            font-family: sans-serif; 
+            text-align: center; 
+            padding: 20px; 
+            background: #1a1a1a; 
+            color: white; 
+            user-select: none;
+        }
+        
+        h1 { margin-bottom: 5px; }
+        #round-title { color: #888; margin-top: 0; font-size: 18px; }
+
+        /* WASD Controller Layout */
+        .controller-container {
+            display: grid;
+            grid-template-columns: repeat(3, 80px);
+            grid-gap: 15px;
+            justify-content: center;
+            margin: 40px auto;
+        }
+
+        .vote-btn { 
+            width: 80px;
+            height: 80px;
+            font-size: 28px; 
+            font-weight: bold;
+            cursor: pointer; 
+            border-radius: 12px; 
+            border: none; 
+            background: #ff4757; 
+            color: white; 
+            box-shadow: 0 5px #ff2138;
+            transition: all 0.1s ease;
+        }
+
+        /* Shift positions to match a standard gaming keyboard layout */
+        #btnW { grid-column: 2; }
+        #btnA { grid-column: 1; grid-row: 2; }
+        #btnS { grid-column: 2; grid-row: 2; }
+        #btnD { grid-column: 3; grid-row: 2; }
+
+        /* Button click effect */
+        .vote-btn:active:not(:disabled) {
+            transform: translateY(4px);
+            box-shadow: 0 1px #ff2138;
+        }
+
+        /* Disabled state when waiting for Godot */
+        .vote-btn:disabled { 
+            background: #444; 
+            box-shadow: 0 2px #222;
+            color: #777;
+            cursor: not-allowed; 
+        }
+
+        #message { 
+            font-size: 20px; 
+            margin-top: 30px; 
+            color: #ffa500; 
+            font-weight: bold;
+            min-height: 24px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Control the Game</h1>
+    <p id="round-title">Connecting to puzzle session...</p>
+    
+    <!-- Keyboard Layout Grid -->
+    <div class="controller-container">
+        <button id="btnW" class="vote-btn" disabled>W</button>
+        <button id="btnA" class="vote-btn" disabled>A</button>
+        <button id="btnS" class="vote-btn" disabled>S</button>
+        <button id="btnD" class="vote-btn" disabled>D</button>
+    </div>
+    
+    <div id="message">Please wait...</div>
+
+    <!-- Load Firebase SDK Modules -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // 1. Replace this with YOUR actual Firebase project configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSy...",
+            authDomain: "your-project.firebaseapp.com",
+            projectId: "your-project",
+            storageBucket: "your-project.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:12345:web:abcde"
+        };
+
+        // Initialize Firebase and Firestore
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Targeted Collection and Document match the Godot script
+        const voteDocRef = doc(db, "live_polls", "current_vote");
+        let localRoundTracker = 0;
+
+        // 2. Real-time Listener: Fires instantly when Godot alters data
+        onSnapshot(voteDocRef, (snapshot) => {
+            const data = snapshot.data();
+            if (!data) {
+                document.getElementById('message').innerText = "Waiting for game host to initialize document...";
+                return;
+            }
+
+            // Detect if Godot increased the round number
+            if (data.round_number !== localRoundTracker) {
+                localRoundTracker = data.round_number;
+                
+                // Update text indicators
+                document.getElementById('round-title').innerText = `Round: ${localRoundTracker}`;
+                document.getElementById('message').innerText = "Make your move!";
+                
+                // Unlock the controller buttons for input
+                document.querySelectorAll('.vote-btn').forEach(btn => btn.disabled = false);
+            }
+        }, (error) => {
+            console.error("Snapshot error:", error);
+            document.getElementById('message').innerText = "Connection lost. Check database rules.";
+        });
+
+        // 3. Cast Vote Logic
+        async function castVote(directionField) {
+            // Lock out buttons immediately to ensure one submission per person per round
+            document.querySelectorAll('.vote-btn').forEach(btn => btn.disabled = true);
+            document.getElementById('message').innerText = `Vote recorded for [${directionField.toUpperCase()}]. Waiting for game loop...`;
+
+            try {
+                // Safely update the database counter matching the key field name ('w', 'a', 's', 'd')
+                await updateDoc(voteDocRef, {
+                    [directionField]: increment(1)
+                });
+            } catch (error) {
+                console.error("Error updating vote: ", error);
+                document.getElementById('message').innerText = "Failed to send vote. Try again.";
+                document.querySelectorAll('.vote-btn').forEach(btn => btn.disabled = false);
+            }
+        }
+
+        // Event Assignments
+        document.getElementById('btnW').addEventListener('click', () => castVote('w'));
+        document.getElementById('btnA').addEventListener('click', () => castVote('a'));
+        document.getElementById('btnS').addEventListener('click', () => castVote('s'));
+        document.getElementById('btnD').addEventListener('click', () => castVote('d'));
+    </script>
+</body>
+</html>
