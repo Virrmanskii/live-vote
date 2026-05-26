@@ -108,37 +108,45 @@
         let localRoundTracker = 0;
 
         // 2. Real-time Listener: Fires instantly when Godot alters data
-        onSnapshot(voteDocRef, (snapshot) => {
+       onSnapshot(voteDocRef, (snapshot) => {
             const data = snapshot.data();
-            
-            // Debugging line: Right-click the webpage -> Inspect -> Console to see this output!
             console.log("Raw Firebase data received by website:", data);
 
             if (!data) {
+                document.getElementById('round-title').innerText = "Connecting to puzzle session...";
                 document.getElementById('message').innerText = "Waiting for game host to initialize document...";
+                document.querySelectorAll('.vote-btn').forEach(btn => btn.disabled = true);
                 return;
             }
         
-            // Enhanced helper to dive deep into fields if your plugin format varies
             const unpackValue = (field) => {
                 if (!field) return 0;
                 if (typeof field === 'object') {
                     if ('integerValue' in field) return parseInt(field.integerValue);
                     if ('stringValue' in field) return parseInt(field.stringValue);
                     if ('doubleValue' in field) return parseInt(field.doubleValue);
-                    // If your plugin wrapped it inside a generic value container
                     if ('value' in field) return unpackValue(field.value);
                 }
                 return parseInt(field) || 0;
             };
         
-            // Check if fields are grouped under a 'fields' child property or root level
             const targetData = data.fields ? data.fields : data;
             const incomingRound = unpackValue(targetData.round_number);
         
             console.log("Parsed Round Number:", incomingRound);
 
-            // Detect if Godot increased the round number
+            // NEW: If round number is 0, the game host went offline!
+            if (incomingRound === 0) {
+                localRoundTracker = 0; // Reset our tracker
+                document.getElementById('round-title').innerText = "Connecting to puzzle session...";
+                document.getElementById('message').innerText = "Waiting for game host to initialize document...";
+                
+                // Lock the buttons back down
+                document.querySelectorAll('.vote-btn').forEach(btn => btn.disabled = true);
+                return;
+            }
+
+            // Detect if Godot increased the round number normally
             if (incomingRound !== localRoundTracker && incomingRound > 0) {
                 localRoundTracker = incomingRound;
                 
